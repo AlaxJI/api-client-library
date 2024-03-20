@@ -1,0 +1,22 @@
+{
+    "name": "alaxji/api-client-library",
+    "description": "Library for made client for mostly API services",
+    "version":"0.1.1",
+    "authors": [
+        {
+            "name": "Алексей Дубровский",
+            "email": "alaxji@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "> 5.6",
+        "psr/log": "^1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "ApiClient\\": [
+                "src/"
+            ]
+        }
+    }
+}

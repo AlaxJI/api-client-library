@@ -1,0 +1,10 @@
+/nbproject
+/vendor
+/docHTML
+/docXML
+phpdoc-cache-*
+composer.lock
+*.log
+*.pid
+*.zip
+.php_cs.cache
