@@ -2,20 +2,26 @@
 
 namespace ApiClient\Models;
 
-use ArrayAccess;
 use ApiClient\Exceptions\ModelException;
 use ApiClient\Helpers\Format;
 use ApiClient\Request\Request;
+use ArrayAccess;
+use ReflectionClass;
 
 /**
  * Class AbstractModel
  *
- * Абстрактный класс для всех моделей
- * При реализации модели рекомендуется использовать описание `@property type $fieldName Описание`
- * Поля объявляются массивом `protected $fields = ["fieldName_1",..., "fieldName_N"]`
+ * <p>Абстрактный класс для всех моделей</p>
+ * <p>При реализации модели рекомендуется использовать описание <code><b>@property</b> type $fieldName Описание</code>.</p>
+ * <p>Поля объявляются массивом <code>protected $fields = ['fieldName_1',..., 'fieldName_N']</code></p>
+ * <p>Доступ к полям модели может осуществляться, как к массиву. За совпадение типов отвечает пользователь библиотеки.</p>
+ * <p>Для каждого поля есть встроенный сеттер и геттер – <code>setИмяПеременной(&lt;значение&gt;)</code>, <code>getИмяПеременной()</code>, которые можно переопределить. Доступ к полям модели через массив или как к полям класса обходит использование сеттеров и геттеров.</p>
+ * <p>Значение поля может быть объектом наследующим <b><code>AbstractModel</code></b>. Такая модель будет найдена самостоятельно по правилам: <ul><li><b><code>&lt;ИмяТекушегоКласса&gt;\&lt;ИмяПеременнойВВерблюжемРегистре&gt;</code></b> Если переменная в <code>змеином_регистре</code> она будет преобразована в <code>ВерблюжийРегистр</code> используя как разделитель символ <code>`_`</code></li><li><b><code>&lt;ИмяТекушегоКласса&gt;&lt;ИмяПеременнойВВерблюжемРегистре&gt;</code></b> Если переменная в <code>змеином_регистре</code> она будет преобразована в <code>ВерблюжийРегистр</code> используя как разделитель символ <code>`_`</code></li></ul></p>
+ * <p>Получить новый экземпляр объекта наследующего <b><code>AbstractModel</code></b> можно с помощью метода create <code>createИмяПеременной(): ?AbstractModel</code></p>
+ * <p>При реализации модели рекомендуется использовать описание <code><b>@method</b> type methodName(type $paramName) Description</code> для всех встроенных методов.</p>
  *
  * @package ApiClient\Models
- * @version 0.0.1
+ * @version 0.2.0
  * @author Alexei Dubrovski <alaxji@gmail.com>
  *
  * @todo Требуется доработка в плане кастомных полей или по типу https://github.com/drillcoder/AmoCRM_Wrap/
@@ -53,7 +59,7 @@ abstract class AbstractModel extends Request implements ArrayAccess, ModelInterf
      */
     public function offsetExists($offset)
     {
-        return in_array($offset, $this->fields) || (isset($this->fields['custom_fields']) && in_array($offset, $this->fields['custom_fields']));
+        return in_array($offset, $this->fields);
     }
 
     /**
@@ -65,22 +71,17 @@ abstract class AbstractModel extends Request implements ArrayAccess, ModelInterf
      */
     public function offsetGet($offset)
     {
-        $getter = 'get' . Format::upperCamelCase($offset);
-
-        if (method_exists($this, $getter)) {
-            return $this->$getter();
-        } elseif (isset($this->values[$offset])) {
-            return $this->values[$offset];
-        } elseif (isset($this->values['custom_fields']) && isset($this->values['custom_fields'][$offset])) {
-            return $this->values['custom_fields'][$offset];
+        if (!$this->offsetExists($offset)) {
+            throw new ModelException('Parametr not exists in ' . get_class($this) . ': ' . $offset);
         }
-        return null;
+
+        $value = isset($this->values[$offset]) ? $this->values[$offset] : $this->tryModel($offset);
+
+        return $value;
     }
 
     /**
      * Устанавливает заданное поле модели
-     *
-     * Если есть сеттер модели, то будет использовать сеттер
      *
      * @link http://php.net/manual/ru/arrayaccess.offsetset.php
      * @param mixed $offset Название поля, которому будет присваиваться значение
@@ -91,16 +92,7 @@ abstract class AbstractModel extends Request implements ArrayAccess, ModelInterf
         if (!$this->offsetExists($offset)) {
             throw new ModelException('Parametr not exists in ' . get_class($this) . ': ' . $offset);
         }
-
-        $setter = 'set' . Format::lowerCamelCase($offset);
-
-        if (method_exists($this, $setter)) {
-            return $this->$setter($value);
-        } elseif (in_array($offset, $this->fields)) {
-            $this->values[$offset] = $value;
-        } elseif (isset($this->fields['custom_fields']) && in_array($offset, $this->fields['custom_fields'])) {
-            $this->values['custom_fields'][$offset] = $value;
-        }
+        $this->values[$offset] = $value;
     }
 
     /**
@@ -113,120 +105,65 @@ abstract class AbstractModel extends Request implements ArrayAccess, ModelInterf
     {
         if (isset($this->values[$offset])) {
             unset($this->values[$offset]);
-        } elseif (isset($this->values['custom_fields']) && isset($this->values['custom_fields'][$offset])) {
-            unset($this->values['custom_fields'][$offset]);
         }
     }
 
     /**
-     * Получение списка значений полей модели
+     * Получение списка значений полей модели. Если значение поля – значения её полей будет преведено к скалярным типам, массивам и null
      *
-     * @return array Список значений полей модели
+     * @return array Список значений полей модели. В качестве значений будет – cкалярные типы и массивы и null. Экземпляры моделей будет преобразованы.
      */
     public function getValues()
     {
-        return $this->values;
-    }
-
-    /**
-     * Добавление кастомного поля модели
-     *
-     * @param int $id Уникальный идентификатор заполняемого дополнительного поля
-     * @param mixed $value Значение заполняемого дополнительного поля
-     * @param mixed $enum Тип дополнительного поля
-     * @param mixed $subtype Тип подтипа поля
-     * @return $this
-     */
-    public function addCustomField($id, $value, $enum = false, $subtype = false)
-    {
-        $field = [
-            'id' => $id,
-            'values' => [],
-        ];
-
-        if (!is_array($value)) {
-            $values = [[$value, $enum]];
-        } else {
-            $values = $value;
-        }
-
-        foreach ($values as $val) {
-            list($value, $enum) = $val;
-
-            $fieldValue = [
-                'value' => $value,
-            ];
-
-            if ($enum !== false) {
-                $fieldValue['enum'] = $enum;
+        $values = [];
+        foreach ($this->values as $key => $value) {
+            if (is_a($value, AbstractModel::class)) {
+                $value = $value->getValues();
             }
-
-            if ($subtype !== false) {
-                $fieldValue['subtype'] = $subtype;
-            }
-
-            $field['values'][] = $fieldValue;
+            $values[$key] = $value;
         }
 
-        $this->values['custom_fields'][] = $field;
-
-        return $this;
+        return $values;
     }
 
     /**
-     * Добавление кастомного поля типа мультиселект модели
      *
-     * @param int $id Уникальный идентификатор заполняемого дополнительного поля
-     * @param mixed $values Значения заполняемого дополнительного поля типа мультиселект
-     * @return $this
+     * @param type $name
+     * @param type $arguments
+     * @return type
+     * @throws ModelException
+     * @todo Кажется, нуждается в оптимизации...
      */
-    public function addCustomMultiField($id, $values)
-    {
-        $field = [
-            'id' => $id,
-            'values' => [],
-        ];
-
-        if (!is_array($values)) {
-            $values = [$values];
-        }
-
-        $field['values'] = $values;
-
-        $this->values['custom_fields'][] = $field;
-
-        return $this;
-    }
-
-    /**
-     * Проверяет ID на валидность
-     *
-     * @param mixed $id ID
-     * @return bool
-     * @throws Exception
-     */
-    protected function checkId($id)
-    {
-        if (intval($id) != $id || $id < 1) {
-            throw new Exception('Id must be integer and positive');
-        }
-
-        return true;
-    }
-
     public function __call($name, $arguments)
     {
         $result = $this;
 
-        $getOrSet = substr($name, 0, 3);
+        $command = substr($name, 0, 3);
         $fieldCamelCase = substr($name, 3);
+        if ($fieldCamelCase !== ucfirst($fieldCamelCase)) {
+            // NOTE: это не сеттер и геттер... и не new...
+            // NOTE: ... может create?
+            $command = substr($name, 0, 6);
+            $fieldCamelCase = substr($name, 6);
+            if ($fieldCamelCase !== ucfirst($fieldCamelCase)) {
+                // NOTE: это точно не сеттер и геттер... и не new... и не create
+                throw new ModelException('Method `' . $name . '` is not available in' . get_class($this));
+            }
+        }
         $field = Format::snakeCase($fieldCamelCase);
-        switch ($getOrSet) {
+        if (!$this->offsetExists($field) && $this->offsetExists($fieldCamelCase)) {
+            $field = $fieldCamelCase;
+        }
+        switch ($command) {
             case 'get':
                 $result = $this->offsetGet($field);
                 break;
             case 'set':
                 $this->offsetSet($field, $arguments[0]);
+                break;
+            case 'new':
+            case 'create':
+                $result = $this->tryModel($fieldCamelCase);
                 break;
             default:
                 throw new ModelException('Method `' . $name . '` is not available in' . get_class($this));
@@ -235,30 +172,33 @@ abstract class AbstractModel extends Request implements ArrayAccess, ModelInterf
         return $result;
     }
 
-    public function __get($offset)
+    /**
+     *
+     * @param type $offset
+     * @return type
+     */
+    public function __get($name)
     {
-        $result = $this->tryModel($offset);
-        if (is_null($result)) {
-            $result = $this->offsetGet($offset);
-        }
-
-        return $result;
+        return $this->offsetGet($name);
     }
 
-    public function __set($offset, $value)
+    public function __set($name, $value)
     {
-        $this->offsetSet($offset, $value);
+        $this->offsetSet($name, $value);
     }
 
     public function __isset($name)
     {
-        $result = !is_null($this->__get($name));
+        return $this->offsetExists($name) && isset($this->values[$name]);
+    }
 
-        return $result;
+    public function __unset($name)
+    {
+        $this->offsetUnset($name);
     }
 
     /**
-     *
+     * Пробует получить модель данных
      * @param type $name
      * @throws ModelException
      */
@@ -266,22 +206,33 @@ abstract class AbstractModel extends Request implements ArrayAccess, ModelInterf
     {
         $item = null;
 
-        $rClass = new \ReflectionClass($this);
+        $rClass = new ReflectionClass($this);
         $fullClassName = $rClass->getName();
-        $classname = strtr('\\<full_class_name><model_name>', [
-            '<full_class_name>' => $fullClassName,
-            '<model_name>' => Format::upperCamelCase($name),
-        ]);
-        if (class_exists($classname)) {
-            // Чистим GET и POST от предыдущих вызовов
-            $this->parameters->reset();
+        $modelName = Format::upperCamelCase($name);
+        $classnames = [
+            strtr('\\<full_class_name>\\<model_name>', [
+                '<full_class_name>' => $fullClassName,
+                '<model_name>' => $modelName,
+            ]),
+            strtr('\\<full_class_name><model_name>', [
+                '<full_class_name>' => $fullClassName,
+                '<model_name>' => $modelName,
+            ]),
+        ];
+        foreach ($classnames as $classname) {
+            if (class_exists($classname)) {
+                // Чистим GET и POST от предыдущих вызовов
+                $this->getParameters()->reset();
 
-            /** @var AbstractModel $item */
-            $client = $this->getClient();
-            $item = new $classname($this->logger, $client, $this);
-            $this->copyPropertiesTo($item);
+                /** @var AbstractModel $item */
+                $client = $this->getClient();
+                $item = new $classname($this->logger, $client, $this);
+                $this->copyPropertiesTo($item);
 
-            $this->logger->debug("Создан экземпляр подкласса $name");
+                $this->logger->debug("Создан экземпляр подкласса $name");
+
+                break;
+            }
         }
 
         return $item;

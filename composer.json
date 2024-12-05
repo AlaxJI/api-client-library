@@ -1,7 +1,7 @@
 {
     "name": "alaxji/api-client-library",
     "description": "Library for made client for mostly API services",
-    "version":"0.1.1",
+    "version":"0.2.0",
     "authors": [
         {
             "name": "Алексей Дубровский",

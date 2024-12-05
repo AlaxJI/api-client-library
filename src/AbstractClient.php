@@ -11,14 +11,15 @@
 
 namespace ApiClient;
 
-use ApiClient\Request\CurlHandle;
-use ApiClient\Request\ParamsBag;
-use ApiClient\Helpers\Format;
 use ApiClient\Exceptions\ModelException;
-use ApiClient\Models\AbstractModel;
+use ApiClient\Helpers\Format;
 use ApiClient\Logger\LoggerManager;
 use ApiClient\Logger\StdLogger;
+use ApiClient\Models\AbstractModel;
+use ApiClient\Request\CurlHandle;
+use ApiClient\Request\ParamsBag;
 use Psr\Log\LogLevel;
+use ReflectionClass;
 
 /**
  * Основной класс для получения доступа к моделям
@@ -35,7 +36,7 @@ class AbstractClient
      * @var Fields|null Экземпляр Fields для хранения номеров полей
      * @author dotzero <mail@dotzero.ru>
      */
-    public $fields = null;
+    protected $fields = null;
     /**
      * @var ParamsBag|null Экземпляр ParamsBag для хранения аргументов
      * @author dotzero <mail@dotzero.ru>
@@ -69,7 +70,7 @@ class AbstractClient
     /**
      * AbstractClient constructor
      *
-     * @param Psr\Log\LoggerInterface $logger
+     * @param \Psr\Log\LoggerInterface $logger
      * 
      * @author Alexei Dubrovski <alaxji@gmail.com>
      * @author dotzero <mail@dotzero.ru>
@@ -99,7 +100,7 @@ class AbstractClient
      */
     public function __get($name)
     {
-        $rClass = new \ReflectionClass($this);
+        $rClass = new ReflectionClass($this);
         $namespace = $rClass->getNamespaceName();
         $classname = strtr('\\<namespace>\\Models\\<modelName>', [
             '<namespace>' => $namespace,
@@ -157,7 +158,7 @@ class AbstractClient
      * Получить ?параметры? клиента
      * @return ParamsBag|null
      */
-    public function getParameters(): ?ParamsBag
+    public function getParameters()
     {
         return $this->parameters;
     }
@@ -166,7 +167,7 @@ class AbstractClient
      * Получить обтрботчик cURL
      * @return CurlHandle
      */
-    public function getCurlHandle(): CurlHandle
+    public function getCurlHandle()
     {
         return $this->curlHandle;
     }

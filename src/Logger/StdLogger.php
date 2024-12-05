@@ -11,7 +11,6 @@
 
 namespace ApiClient\Logger;
 
-use DateTime;
 use Psr\Log\AbstractLogger;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;

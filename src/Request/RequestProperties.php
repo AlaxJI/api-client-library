@@ -12,14 +12,14 @@
 namespace ApiClient\Request;
 
 /**
- * Свойства запроса
+ * Свойства запроса без прямого доступа к ним
  *
- * @author alaxji
+ * @author Alexei Dubrovski <alaxji@gmail.com>
  */
 class RequestProperties
 {
     /**
-     * @var AbstractClient|null клиент
+     * @var bool Флаг использования cookies. По-умолчанию, `false`.
      * @author Alexei Dubrovski <alaxji@gmail.com>
      */
     protected $cookies = false;
@@ -28,6 +28,11 @@ class RequestProperties
      * @author dotzero <mail@dotzero.ru>
      */
     protected $debug = false;
+    /**
+     * @var array Дополнительные параметры в заколовке запроса
+     * @author Alexei Dubrovski <alaxji@gmail.com>
+     */
+    private $extraHeaders = [];
     /**
      * @var bool Флаг использования authenticated (http basic). Логин и пароль, используемые при соединении, указанные в формате "[username]:[password]". По-умолчанию, `false`.
      * @author Alexei Dubrovski <alaxji@gmail.com>
@@ -43,8 +48,16 @@ class RequestProperties
     protected $parseResponse = true;
 
     //- Methods
-
     /**
+     * Возвращает список дополнительных http заголовков
+     * @return array массив дополнительных http заголовков, либо пустой массив
+     */
+    protected function getExtraHeaders()
+    {
+        return $this->extraHeaders;
+    }
+
+        /**
      * Копирует свойства запроса в необходимый запрос
      * @param RequestProperties $request
      * @return $this
@@ -86,6 +99,18 @@ class RequestProperties
 
         $level = $this->debug ? LogLevel::DEBUG : LogLevel::INFO;
         $this->logger->setLevel($level);
+
+        return $this;
+    }
+
+    /**
+     * Добавление дополнительных http заголовков, затирает предыдущие
+     * @param array $headers массив дополнительных http заголовков
+     * @author Alexei Dubrovski <alaxji@gmail.com>
+     */
+    public function setHeaders($headers = [])
+    {
+        $this->extraHeaders = $headers;
 
         return $this;
     }

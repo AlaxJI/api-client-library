@@ -12,14 +12,14 @@
 namespace ApiClient\Request;
 
 use ApiClient\AbstractClient;
-use ApiClient\Models\AbstractModel;
-use ApiClient\Exceptions\NetworkException;
-use ApiClient\Exceptions\ModelException;
 use ApiClient\Exceptions\Exception;
+use ApiClient\Exceptions\ModelException;
+use ApiClient\Exceptions\NetworkException;
 use ApiClient\Logger\LoggerManager;
+use ApiClient\Models\AbstractModel;
 use ApiClient\Request\CurlHandle;
-use ApiClient\Request\RequestProperties;
 use ApiClient\Request\ParamsBag;
+use ApiClient\Request\RequestProperties;
 use DateTime;
 use Psr\Log\LogLevel;
 
@@ -50,11 +50,6 @@ class Request extends RequestProperties
      * @var string $endpoint
      */
     private $endpoint = null;
-    /**
-     * @var array|null Дополнительные параметры в заколовке запроса
-     * @author Alexei Dubrovski <alaxji@gmail.com>
-     */
-    private $extraHeaders = null;
     /**
      * @var int|null Последний полученный HTTP код
      * @author dotzero <mail@dotzero.ru>
@@ -151,18 +146,6 @@ class Request extends RequestProperties
     }
 
     /**
-     * Добавление дополнительных http заголовков, затирает предыдущие
-     * @param array $headers массив дополнительных http заголовков
-     * @author Alexei Dubrovski <alaxji@gmail.com>
-     */
-    public function setHeaders($headers = [])
-    {
-        $this->extraHeaders = $headers;
-
-        return $this;
-    }
-
-    /**
      * Возвращает последний полученный HTTP ответ
      *
      * @return null|string
@@ -200,7 +183,7 @@ class Request extends RequestProperties
      * @param bool $isFull Если установлено `true` то выводится будет полная точка запроса включая родителей, иначе  конкретная точка зпроса
      * @return string
      */
-    public function getEndpoint($isFull = true): string
+    public function getEndpoint($isFull = true)
     {
         $endpoint = '';
         if ($isFull && !$this->isEndpointIndividual() && !is_null($this->getParent())) {
@@ -288,7 +271,7 @@ class Request extends RequestProperties
      */
     protected function prepareHeaders($modified = null)
     {
-        $headers = [];
+        $headers = $this->getExtraHeaders();
         $headers[] = 'Connection: keep-alive';
         if ($this->parameters->getJson()) {
             $headers[] = 'Content-Type: application/json';
@@ -300,10 +283,6 @@ class Request extends RequestProperties
             } else {
                 $headers[] = 'IF-MODIFIED-SINCE: ' . (new DateTime($modified))->format(DateTime::RFC1123);
             }
-        }
-
-        if (is_array($this->extraHeaders)) {
-            $headers = array_merge($headers, $this->extraHeaders);
         }
 
         return $headers;
@@ -468,7 +447,7 @@ class Request extends RequestProperties
      * @param string $message
      * @throws ModelException
      */
-    private function checkEmpty(array $values, string $message)
+    private function checkEmpty($values, $message)
     {
         foreach ($values as $value) {
             if (empty($value)) {
@@ -490,7 +469,7 @@ class Request extends RequestProperties
      * Получить клиента API
      * @return AbstractClient|null
      */
-    public function getClient(): AbstractClient
+    public function getClient()
     {
         return $this->client;
     }
@@ -548,7 +527,7 @@ class Request extends RequestProperties
      *
      * @see ApiClient\Request::setEndpointIndividual()
      */
-    public function setEndpoint(string $endpoint)
+    public function setEndpoint($endpoint)
     {
         $this->endpoint = $endpoint;
 
